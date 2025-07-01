@@ -1,0 +1,42 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Manager</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; }
+        .audio-list { margin-top: 20px; }
+        .audio-item { margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <h1>Audio Manager</h1>
+    <p>To add or remove audios, just update the "audios" folder on your GitHub repository and push your changes.</p>
+    <div class="audio-list">
+        <!-- Audio files will be listed here -->
+        <script>
+            const audioFolder = "audios/";
+            fetch(audioFolder).then(response => response.text()).then(data => {
+                const parser = new DOMParser();
+                const htmlDoc = parser.parseFromString(data, "text/html");
+                const links = htmlDoc.querySelectorAll("a");
+                links.forEach(link => {
+                    const fileName = link.getAttribute("href");
+                    if (fileName.match(/\.(mp3|wav|ogg)$/i)) {
+                        const container = document.createElement("div");
+                        container.className = "audio-item";
+                        container.innerHTML = \`
+                            <p>\${fileName}</p>
+                            <audio controls src="\${audioFolder + fileName}"></audio>
+                        \`;
+                        document.querySelector(".audio-list").appendChild(container);
+                    }
+                });
+            });
+        </script>
+    </div>
+</body>
+</html>
