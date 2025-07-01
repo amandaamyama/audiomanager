@@ -1,0 +1,154 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Persistent Audio Manager</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background-color: #f4f4f4;
+    }
+    h1 {
+      text-align: center;
+    }
+    .controls {
+      margin-bottom: 1rem;
+    }
+    .audio-item {
+      background: #fff;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    input, button {
+      margin-top: 0.5rem;
+      padding: 0.5rem;
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔐 Persistent Audio Manager</h1>
+
+  <div class="controls">
+    <input type="password" id="authPassword" placeholder="Enter password to edit" />
+    <input type="file" id="audioInput" accept="audio/*" multiple disabled />
+    <button onclick="clearAll()">🧹 Clear All</button>
+  </div>
+
+  <div id="audioList"></div>
+
+  <script>
+    const DB_NAME = "AudioDB";
+    const STORE_NAME = "audios";
+    const correctPassword = "admin123";
+    let db;
+
+    const authPassword = document.getElementById('authPassword');
+    const audioInput = document.getElementById('audioInput');
+    const audioList = document.getElementById('audioList');
+
+    authPassword.addEventListener('input', function () {
+      const isValid = this.value === correctPassword;
+      audioInput.disabled = !isValid;
+    });
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, 1);
+        request.onerror = () => reject("Failed to open DB");
+        request.onsuccess = () => {
+          db = request.result;
+          resolve();
+        };
+        request.onupgradeneeded = (e) => {
+          db = e.target.result;
+          db.createObjectStore(STORE_NAME, { keyPath: "name" });
+        };
+      });
+    }
+
+    function addToDB(file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        store.put({ name: file.name, data: reader.result });
+        tx.oncomplete = renderAudioList;
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function getAllAudios() {
+      return new Promise((resolve) => {
+        const tx = db.transaction(STORE_NAME, "readonly");
+        const store = tx.objectStore(STORE_NAME);
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result);
+      });
+    }
+
+    async function renderAudioList() {
+      audioList.innerHTML = '';
+      const files = await getAllAudios();
+      files.forEach((file) => {
+        const blob = new Blob([file.data]);
+        const url = URL.createObjectURL(blob);
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'audio-item';
+
+        const audio = document.createElement('audio');
+        audio.controls = true;
+        audio.src = url;
+
+        const title = document.createElement('p');
+        title.textContent = `🎵 ${file.name}`;
+
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = '🗑 Remove';
+        removeBtn.onclick = () => {
+          if (authPassword.value !== correctPassword) {
+            alert("Invalid password. Cannot remove audio.");
+            return;
+          }
+          const tx = db.transaction(STORE_NAME, "readwrite");
+          const store = tx.objectStore(STORE_NAME);
+          store.delete(file.name).onsuccess = renderAudioList;
+        };
+
+        wrapper.appendChild(title);
+        wrapper.appendChild(audio);
+        wrapper.appendChild(removeBtn);
+        audioList.appendChild(wrapper);
+      });
+    }
+
+    audioInput.addEventListener('change', function () {
+      if (authPassword.value !== correctPassword) {
+        alert("Invalid password. Cannot add audio.");
+        return;
+      }
+      for (const file of this.files) {
+        addToDB(file);
+      }
+      this.value = '';
+    });
+
+    function clearAll() {
+      if (authPassword.value !== correctPassword) {
+        alert("Invalid password. Cannot clear.");
+        return;
+      }
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      const store = tx.objectStore(STORE_NAME);
+      store.clear().onsuccess = renderAudioList;
+    }
+
+    openDB().then(renderAudioList);
+  </script>
+</body>
+</html>
